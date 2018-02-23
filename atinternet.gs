@@ -123,6 +123,7 @@ function getEncodedQuery(url) {
   }
   
   var urlParams = url.split("?")[1];
+  var urlParams = (urlParams.charAt(0)==="&") ? urlParams.substr(1) : urlParams;
   var finalURL = JSON.parse(
                    '{"' + urlParams.replace(/&/g, '","').replace(/=/g,'":"') + '"}', 
                        function(key, value) {
