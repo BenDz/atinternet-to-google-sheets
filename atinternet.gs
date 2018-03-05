@@ -1,30 +1,26 @@
 var userProperties = PropertiesService.getUserProperties();
 var userMail = userProperties.getProperty('ATMAIL');
-var userPwd = userProperties.getProperty('ATPWD');
+var atToken = userProperties.getProperty('ATTOKEN');
+var authentUrl = "https://apirest.atinternet-solutions.com/rest/config/v1/authentication/authentication/";
 
 function onOpen(e) {
   
   userProperties = PropertiesService.getUserProperties();
   userMail = userProperties.getProperty('ATMAIL');
+  atToken = userProperties.getProperty('ATTOKEN');
   
-  Logger.log(userMail);
+  ui = SpreadsheetApp.getUi();
   
-  if(userMail) {
-    SpreadsheetApp.getUi()
-    .createMenu('AT Internet')
-    .addItem('Login', 'ATLogin')
-    .addSeparator()
-    .addItem('Logged in as '+userMail, 'ATLogout')
-    .addToUi();
+  if(atToken !== null) {
+    addLoggedInMenu(userMail);
   } else {
     SpreadsheetApp.getUi()
     .createMenu('AT Internet')
     .addItem('Login', 'ATLogin')
     .addToUi();
   }
-}
   
-
+}
 
 function ATLogin() {
   
@@ -33,7 +29,21 @@ function ATLogin() {
   userProperties.setProperty('ATMAIL', mailResponse.getResponseText());
   
   var pwdResponse = ui.prompt('Enter your password:');
-  userProperties.setProperty('ATPWD', pwdResponse.getResponseText());
+  
+  var b64 = Utilities.base64Encode(mailResponse.getResponseText() + ":" + pwdResponse.getResponseText());
+  var header = {"Authorization": "Basic " + b64};
+  var jsondata = UrlFetchApp.fetch(authentUrl, {'muteHttpExceptions': true, 'headers': header});
+  
+  if(jsondata.getResponseCode() == 200) {
+    var object = JSON.parse(jsondata.getContentText());
+    ui.alert('Logged in!');
+    
+    userProperties.setProperty('ATTOKEN', object.ExpiringToken);
+    
+    addLoggedInMenu(mailResponse.getResponseText());
+  } else {
+    ui.alert('Wrong credentials!');
+  }  
   
 }
 
@@ -41,10 +51,24 @@ function ATLogout() {
   
   var userProperties = PropertiesService.getUserProperties();
   userProperties.deleteProperty('ATMAIL');
-  userProperties.deleteProperty('ATPWD');
+  userProperties.deleteProperty('ATTOKEN');
   
   SpreadsheetApp.getUi().alert('Logged out');
   
+  SpreadsheetApp.getUi()
+    .createMenu('AT Internet')
+    .addItem('Login', 'ATLogin')
+    .addToUi();
+  
+}
+
+function addLoggedInMenu(mail) {
+  SpreadsheetApp.getUi()
+    .createMenu('AT Internet')
+    .addItem('Logout', 'ATLogout')
+    .addSeparator()
+    .addItem('Logged in as '+mail, 'ATLogout')
+    .addToUi();
 }
 
 function ImportJSON(url, query, parseOptions) {
@@ -101,9 +125,6 @@ function ImportJSONAdvanced(url, fetchOptions, query, parseOptions, includeFunc,
 
 function ImportATInternet(url, fetchOptions, includeFunc, transformFunc) {
   
-  Logger.log(userMail + ":" + userPwd);
-  Logger.log("Import");
-  
   var encodedQuery = getEncodedQuery(url);
   var jsondata = UrlFetchApp.fetch(url.split("?")[0] + '?' + encodedQuery, fetchOptions);
   
@@ -123,7 +144,6 @@ function getEncodedQuery(url) {
   }
   
   var urlParams = url.split("?")[1];
-  var urlParams = (urlParams.charAt(0)==="&") ? urlParams.substr(1) : urlParams;
   var finalURL = JSON.parse(
                    '{"' + urlParams.replace(/&/g, '","').replace(/=/g,'":"') + '"}', 
                        function(key, value) {
@@ -163,12 +183,9 @@ function ImportJSONBasicAuth(url, username, password, query, parseOptions) {
 }
 
 function ImportATInternetBasicAuth(url) {
-  var userMail = userProperties.getProperty('ATMAIL');
-  var userPwd = userProperties.getProperty('ATPWD');
+  var atToken = userProperties.getProperty('ATTOKEN');
   
-  var encodedAuthInformation = Utilities.base64Encode(userMail + ":" + userPwd);
-  Logger.log(encodedAuthInformation);
-  var header = {headers: {Authorization: "Basic " + encodedAuthInformation}};
+  var header = {headers: {Authorization: "Token " + atToken}};
   return ImportATInternet(url, header, includeXPath_, defaultTransform_);
 }
 
