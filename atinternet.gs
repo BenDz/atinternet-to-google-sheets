@@ -1,6 +1,7 @@
 var userProperties = PropertiesService.getUserProperties();
 var userMail = userProperties.getProperty('ATMAIL');
 var atToken = userProperties.getProperty('ATTOKEN');
+var atConfigSheet = userProperties.getProperty('ATCONFIGSHEET') || "AT Config Sheet";
 var authentUrl = "https://apirest.atinternet-solutions.com/rest/config/v1/authentication/authentication/";
 
 function onOpen(e) {
@@ -62,11 +63,41 @@ function ATLogout() {
   
 }
 
+function ATAddRequest() {
+  var ui = SpreadsheetApp.getUi();
+  var apiUrlResponse = ui.prompt('Enter your API query URL:');
+
+  SpreadsheetApp.getActiveSheet().getActiveCell().setValue("=ImportATInternetBasicAuth(\""+apiUrlResponse.getResponseText()+"\")");
+}
+
+function ATCreateSheet() {
+  var ui = SpreadsheetApp.getUi();
+  var activeSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  var yourNewSheet = activeSpreadsheet.getSheetByName(atConfigSheet);
+  
+  if (yourNewSheet != null) {
+    var response = ui.alert('AT Config Sheet already exists', 'Proceeding will delete the current config and will create a new one. Are you sure you want to continue?', ui.ButtonSet.YES_NO);
+
+    if (response == ui.Button.YES) {
+      activeSpreadsheet.deleteSheet(yourNewSheet);
+
+      yourNewSheet = activeSpreadsheet.insertSheet();
+      yourNewSheet.setName(atConfigSheet);
+      
+      yourNewSheet.getRange(1,1,2,2).setValues([["Start date", "2018-01-01"],["End date", "2018-01-10"]]);
+    }     
+  }
+  
+  
+}
+
 function addLoggedInMenu(mail) {
   SpreadsheetApp.getUi()
     .createMenu('AT Internet')
-    .addItem('Logout', 'ATLogout')
+    .addItem('Add a request in the current cell', 'ATAddRequest')
+    //.addItem('Create config sheet', 'ATCreateSheet')
     .addSeparator()
+    .addItem('Logout', 'ATLogout')
     .addItem('Logged in as '+mail, 'ATLogout')
     .addToUi();
 }
@@ -124,7 +155,6 @@ function ImportJSONAdvanced(url, fetchOptions, query, parseOptions, includeFunc,
 }
 
 function ImportATInternet(url, fetchOptions, includeFunc, transformFunc) {
-  
   var encodedQuery = getEncodedQuery(url);
   var jsondata = UrlFetchApp.fetch(url.split("?")[0] + '?' + encodedQuery, fetchOptions);
   
@@ -144,6 +174,7 @@ function getEncodedQuery(url) {
   }
   
   var urlParams = url.split("?")[1];
+  var urlParams = (urlParams.charAt(0)==="&") ? urlParams.substr(1) : urlParams;
   var finalURL = JSON.parse(
                    '{"' + urlParams.replace(/&/g, '","').replace(/=/g,'":"') + '"}', 
                        function(key, value) {
